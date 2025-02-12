@@ -14,7 +14,7 @@ class TaskTrackerState:
     DATA_FILE = "daily_tasks.csv"
     TASK_NAMES = [
         "Education", "Organisation", "Socialisation", "Food", "Activity", 
-        "Meow", "Mini", "Journaling", "Portfolio", "Work"
+        "Hygiene", "Hydration", "Journaling", "Portfolio", "Work"
     ]
 
     def __init__(self):
@@ -36,11 +36,11 @@ class TaskTrackerState:
         if completed < 5:
             return None  # Less than 5 tasks → show warning
         elif completed == 5:
-            return "🔴 Bare Minimum Day (Red)"
+            return "[color=#FF0000]🔴 Bare Minimum Day[/color]"  # Red
         elif 6 <= completed <= 8:
-            return "🟠 Maintenance Day (Orange)"
+            return "[color=#FFA500]🟠 Maintenance Day [/color]"  # Orange
         else:
-            return "🟢 Ideal Day (Green)"
+            return "[color=#00CC00]🟢 Ideal Day[/color]"  # Green
 
     def save_progress(self):
         """Saves the completed tasks count and categorizes the day"""
