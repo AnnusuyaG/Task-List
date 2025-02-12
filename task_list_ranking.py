@@ -76,7 +76,7 @@ class TaskTrackerUI(BoxLayout):
         self.app_ref = app_ref  # Injected app reference (for state transitions)
 
         # Header
-        self.add_widget(Label(text=f"📅 Today: {self.state.today}", font_size=20))
+        self.add_widget(Label(text=f"📅 Today: {self.state.today}", font_size=20,  markup=True))
 
         # Task checkboxes
         self.checkboxes = []
@@ -96,11 +96,11 @@ class TaskTrackerUI(BoxLayout):
         self.add_widget(self.submit_button)
 
         # Status label
-        self.status_label = Label(text="Select tasks completed", font_size=18)
+        self.status_label = Label(text="Select tasks completed", font_size=18, markup=True)
         self.add_widget(self.status_label)
 
         # Display past performance
-        self.history_label = Label(text=self.state.load_history(), font_size=16)
+        self.history_label = Label(text=self.state.load_history(), font_size=16, markup=True)
         self.add_widget(self.history_label)
 
     def update_tasks(self, checkbox, value):
