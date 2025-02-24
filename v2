@@ -1,0 +1,194 @@
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
+from kivy.uix.checkbox import CheckBox
+from kivy.uix.button import Button
+from kivy.uix.popup import Popup
+from kivy.uix.scrollview import ScrollView
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, Rectangle
+import csv
+import os
+from datetime import datetime
+
+# ---------------------------- STATE MANAGEMENT ---------------------------- #
+class TaskTrackerState:
+    """Handles task tracking, saving, and categorization"""
+
+    DATA_FILE = "daily_tasks.csv"
+    TASK_NAMES = [
+        "Education", "Organisation", "Socialisation", "Food", "Activity", 
+        "Meow", "Mini", "Journaling", "Portfolio", "Work"
+    ]
+
+    def __init__(self):
+        """Initialize state and load previous data"""
+        self.today = datetime.today().strftime("%Y-%m-%d")
+        self.task_status = [False] * len(self.TASK_NAMES)
+        self.category = None
+        if not os.path.exists(self.DATA_FILE):
+            self._create_csv()
+
+    def _create_csv(self):
+        """Creates a CSV file if it does not exist"""
+        with open(self.DATA_FILE, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Date", "Completed Tasks", "Category"])  # CSV Headers
+
+    def load_history(self):
+        """Load the last 5 days of task tracking"""
+        if not os.path.exists(self.DATA_FILE):
+            return []
+
+        with open(self.DATA_FILE, mode="r") as file:
+            reader = csv.reader(file)
+            return list(reader)[1:]  # Skip header row
+
+# ---------------------------- UI MANAGEMENT ---------------------------- #
+class ZebraRow(BoxLayout):
+    """Creates a row with alternating background colors"""
+
+    def __init__(self, index, **kwargs):
+        super().__init__(orientation='horizontal', spacing=15, size_hint_y=None, height=50, **kwargs)
+
+        # Apply alternating colors (zebra striping)
+        with self.canvas.before:
+            Color(0.15, 0.15, 0.15, 1) if index % 2 == 0 else Color(0.25, 0.25, 0.25, 1)  # Dark gray & lighter gray
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+
+        self.bind(size=self.update_rect, pos=self.update_rect)
+
+    def update_rect(self, *args):
+        """Update rectangle background when size/position changes"""
+        self.rect.size = self.size
+        self.rect.pos = self.pos
+
+class TaskTrackerUI(BoxLayout):
+    """Handles UI elements and interactions"""
+
+    def __init__(self, state, app_ref, **kwargs):
+        super().__init__(orientation='vertical', padding=20, spacing=15, **kwargs)
+        self.state = state
+        self.app_ref = app_ref
+
+        # Header
+        self.add_widget(Label(text=f"[b]📅 Today: {self.state.today}[/b]", font_size=22, markup=True, size_hint_y=None, height=50))
+
+        # ✅ FIXED: Task checkboxes in a properly aligned layout
+        scroll_view = ScrollView(size_hint=(1, 0.5))
+        task_layout = GridLayout(cols=1, spacing=5, size_hint_y=None)
+        task_layout.bind(minimum_height=task_layout.setter('height'))
+        self.checkboxes = []
+
+        for i, task_name in enumerate(TaskTrackerState.TASK_NAMES):
+            row = ZebraRow(i)
+            task_label = Label(text=task_name, font_size=18, size_hint_x=0.8)
+            task_check = CheckBox(size_hint_x=0.2)
+            task_check.bind(active=self.update_tasks)
+            self.checkboxes.append(task_check)
+            row.add_widget(task_label)
+            row.add_widget(task_check)
+            task_layout.add_widget(row)
+
+        scroll_view.add_widget(task_layout)
+        self.add_widget(scroll_view)  # ✅ Ensures tasks are added correctly
+
+        # Buttons layout
+        button_layout = GridLayout(cols=2, spacing=15, size_hint_y=None, height=60)
+
+        self.submit_button = Button(
+            text="✅ Save & Categorize",
+            font_size=18,
+            background_color=(0.2, 0.6, 1, 1),
+            size_hint_x=0.5
+        )
+        self.submit_button.bind(on_press=self.app_ref.handle_state_transition)
+        button_layout.add_widget(self.submit_button)
+
+        self.manage_button = Button(
+            text="🗑️ Manage Past Entries",
+            font_size=18,
+            background_color=(1, 0.2, 0.2, 1),
+            size_hint_x=0.5
+        )
+        self.manage_button.bind(on_press=self.show_manage_popup)
+        button_layout.add_widget(self.manage_button)
+
+        self.add_widget(button_layout)
+
+        # ✅ FIXED: Initialize history label correctly
+        self.history_label = Label(text=self.get_history_text(), font_size=18, markup=True, size_hint_y=None, height=100)
+        self.add_widget(self.history_label)
+
+    def update_tasks(self, checkbox, value):
+        """Update task completion status"""
+        index = self.checkboxes.index(checkbox)
+        self.state.task_status[index] = value
+
+    def update_ui(self):
+        """Updates UI after task submission"""
+        self.history_label.text = self.get_history_text()
+
+    def get_history_text(self):
+        """Format history for display"""
+        history = self.state.load_history()
+        if not history:
+            return "[color=#808080][b]📜 No past records yet.[/b][/color]"
+
+        return "\n".join([
+            f"[color=#4444FF][b]📌 {date}: {tasks}/10 tasks - {category}[/b][/color]"
+            for date, tasks, category in history[-5:]
+        ])
+
+    def show_manage_popup(self, instance):
+        """Manage past entries"""
+        popup_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        scroll_view = ScrollView()
+
+        history = self.state.load_history()
+        if not history:
+            popup_layout.add_widget(Label(text="[color=#808080]No past records.[/color]", markup=True))
+        else:
+            for i, (date, tasks, category) in enumerate(history):
+                btn = Button(text=f"🗑️ Delete {date}: {tasks}/10 tasks", font_size=16)
+                btn.bind(on_press=lambda inst, index=i: self.delete_entry(index, popup))
+                popup_layout.add_widget(btn)
+
+        clear_all_btn = Button(text="❌ Clear All Entries", font_size=16)
+        clear_all_btn.bind(on_press=lambda inst: self.clear_all_entries(popup))
+        popup_layout.add_widget(clear_all_btn)
+
+        scroll_view.add_widget(popup_layout)
+        popup = Popup(title="Manage Past Entries", content=scroll_view, size_hint=(0.9, 0.7))
+        popup.open()
+
+# ---------------------------- APPLICATION MANAGEMENT ---------------------------- #
+class TaskTrackerApp(App):
+    """Controls state transitions and manages the app lifecycle"""
+
+    def __init__(self, state, **kwargs):
+        super().__init__(**kwargs)
+        self.state = state
+        self.ui = None
+
+    def build(self):
+        """Build the UI and inject dependencies"""
+        self.ui = TaskTrackerUI(self.state, self)
+        return self.ui
+
+    def handle_state_transition(self, instance):
+        """Handles state transitions when the user saves tasks"""
+        self.state.save_progress()
+        self.ui.update_ui()
+
+# ---------------------------- MAIN FUNCTION ---------------------------- #
+def main():
+    """Handles state transitions explicitly and runs the app"""
+    state = TaskTrackerState()
+    app = TaskTrackerApp(state)
+    app.run()
+
+# ---------------------------- RUN APP ---------------------------- #
+if __name__ == "__main__":
+    main()
